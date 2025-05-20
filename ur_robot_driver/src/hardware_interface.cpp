@@ -118,8 +118,10 @@ URPositionHardwareInterface::on_init(const hardware_interface::HardwareInfo& sys
   urcl_position_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
   urcl_position_commands_old_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
   urcl_velocity_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
+  urcl_impedance_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
   position_controller_running_ = false;
   velocity_controller_running_ = false;
+  impedance_controller_running_ = false;
   freedrive_mode_controller_running_ = false;
   passthrough_trajectory_controller_running_ = false;
   tool_contact_controller_running_ = false;
@@ -328,6 +330,9 @@ std::vector<hardware_interface::CommandInterface> URPositionHardwareInterface::e
 
     command_interfaces.emplace_back(hardware_interface::CommandInterface(
         info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &urcl_velocity_commands_[i]));
+
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_EFFORT, &urcl_impedance_commands_[i]));
   }
   // Obtain the tf_prefix from the urdf so that we can have the general interface multiple times
   // NOTE using the tf_prefix at this point is some kind of workaround. One should actually go through the list of gpio
@@ -810,6 +815,7 @@ hardware_interface::return_type URPositionHardwareInterface::read(const rclcpp::
       // initialize commands
       urcl_position_commands_ = urcl_position_commands_old_ = urcl_joint_positions_;
       urcl_velocity_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
+      urcl_impedance_commands_ = urcl_joint_positions_;
       target_speed_fraction_cmd_ = NO_NEW_CMD_;
       resend_robot_program_cmd_ = NO_NEW_CMD_;
       zero_ftsensor_cmd_ = NO_NEW_CMD_;
@@ -844,6 +850,9 @@ hardware_interface::return_type URPositionHardwareInterface::write(const rclcpp:
 
     } else if (velocity_controller_running_) {
       ur_driver_->writeJointCommand(urcl_velocity_commands_, urcl::comm::ControlMode::MODE_SPEEDJ, receive_timeout_);
+
+    } else if (impedance_controller_running_) {
+      ur_driver_->writeJointCommand(urcl_impedance_commands_, urcl::comm::ControlMode::MODE_IMPEDANCE, receive_timeout_);
 
     } else if (freedrive_mode_controller_running_ && freedrive_activated_) {
       ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_NOOP);
@@ -1124,6 +1133,9 @@ hardware_interface::return_type URPositionHardwareInterface::prepare_command_mod
     if (velocity_controller_running_) {
       control_modes[i] = { hardware_interface::HW_IF_VELOCITY };
     }
+    if (impedance_controller_running_) {
+      control_modes[i] = { hardware_interface::HW_IF_EFFORT };
+    }
     if (force_mode_controller_running_) {
       control_modes[i].push_back(FORCE_MODE_GPIO);
     }
@@ -1238,6 +1250,11 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
     urcl_velocity_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
   }
   if (stop_modes_[0].size() != 0 && std::find(stop_modes_[0].begin(), stop_modes_[0].end(),
+                                              StoppingInterface::STOP_IMPEDANCE) != stop_modes_[0].end()) {
+    impedance_controller_running_ = false;
+    urcl_impedance_commands_ = urcl_joint_positions_;
+  }
+  if (stop_modes_[0].size() != 0 && std::find(stop_modes_[0].begin(), stop_modes_[0].end(),
                                               StoppingInterface::STOP_FORCE_MODE) != stop_modes_[0].end()) {
     force_mode_controller_running_ = false;
     stop_force_mode();
@@ -1267,6 +1284,7 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
   if (start_modes_.size() != 0 && std::find(start_modes_[0].begin(), start_modes_[0].end(),
                                             hardware_interface::HW_IF_POSITION) != start_modes_[0].end()) {
     velocity_controller_running_ = false;
+    impedance_controller_running_ = false;
     passthrough_trajectory_controller_running_ = false;
     urcl_position_commands_ = urcl_position_commands_old_ = urcl_joint_positions_;
     position_controller_running_ = true;
@@ -1274,9 +1292,17 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
   } else if (start_modes_[0].size() != 0 && std::find(start_modes_[0].begin(), start_modes_[0].end(),
                                                       hardware_interface::HW_IF_VELOCITY) != start_modes_[0].end()) {
     position_controller_running_ = false;
+    impedance_controller_running_ = false;
     passthrough_trajectory_controller_running_ = false;
     urcl_velocity_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
     velocity_controller_running_ = true;
+  } else if (start_modes_[0].size() != 0 && std::find(start_modes_[0].begin(), start_modes_[0].end(),
+                                                      hardware_interface::HW_IF_EFFORT) != start_modes_[0].end()) {
+    position_controller_running_ = false;
+    velocity_controller_running_ = false;
+    passthrough_trajectory_controller_running_ = false;
+    urcl_impedance_commands_ = urcl_joint_positions_;
+    impedance_controller_running_ = true;
   }
   if (start_modes_[0].size() != 0 &&
       std::find(start_modes_[0].begin(), start_modes_[0].end(), FORCE_MODE_GPIO) != start_modes_[0].end()) {
@@ -1286,6 +1312,7 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
       std::find(start_modes_[0].begin(), start_modes_[0].end(), PASSTHROUGH_GPIO) != start_modes_[0].end()) {
     velocity_controller_running_ = false;
     position_controller_running_ = false;
+    impedance_controller_running_ = false;
     passthrough_trajectory_controller_running_ = true;
     passthrough_trajectory_abort_ = 0.0;
   }
@@ -1293,6 +1320,7 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
       std::find(start_modes_[0].begin(), start_modes_[0].end(), FREEDRIVE_MODE_GPIO) != start_modes_[0].end()) {
     velocity_controller_running_ = false;
     position_controller_running_ = false;
+    impedance_controller_running_ = false;
     freedrive_mode_controller_running_ = true;
     freedrive_activated_ = false;
   }
