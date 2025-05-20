@@ -78,6 +78,7 @@ enum StoppingInterface
   NONE,
   STOP_POSITION,
   STOP_VELOCITY,
+  STOP_IMPEDANCE,
   STOP_PASSTHROUGH,
   STOP_FORCE_MODE,
   STOP_FREEDRIVE,
@@ -177,6 +178,7 @@ protected:
   urcl::vector6d_t urcl_position_commands_;
   urcl::vector6d_t urcl_position_commands_old_;
   urcl::vector6d_t urcl_velocity_commands_;
+  urcl::vector6d_t urcl_impedance_commands_;
   urcl::vector6d_t urcl_joint_positions_;
   urcl::vector6d_t urcl_joint_velocities_;
   urcl::vector6d_t urcl_joint_efforts_;
@@ -305,6 +307,7 @@ protected:
   std::vector<std::vector<std::string>> start_modes_;
   bool position_controller_running_;
   bool velocity_controller_running_;
+  bool impedance_controller_running_;
   bool force_mode_controller_running_ = false;
 
   std::unique_ptr<urcl::UrDriver> ur_driver_;
