@@ -17,8 +17,26 @@
 
 #include "ur_controllers/impedance_controller.hpp"
 
+#include <cstdlib>
+#include <string>
+#include <unordered_map>
+
 namespace ur_controllers
 {
+
+namespace {
+
+static const std::unordered_map<std::string, size_t> JOINTS = {
+    {"shoulder_pan_joint", 0},
+    {"shoulder_lift_joint", 1},
+    {"elbow_joint", 2},
+    {"wrist_1_joint", 3},
+    {"wrist_2_joint", 4},
+    {"wrist_3_joint", 5},
+};
+
+}  // namespace
+
 controller_interface::InterfaceConfiguration ImpedanceController::command_interface_configuration() const
 {
     controller_interface::InterfaceConfiguration config;
@@ -84,14 +102,14 @@ controller_interface::CallbackReturn ImpedanceController::on_activate(const rclc
     try
     {
         subscription_ = this->get_node()->create_subscription<sensor_msgs::msg::JointState>(
-                tf_prefix + "joint_state", 10,
+                tf_prefix + "target_joint_positions", 10,
                 std::bind(&ImpedanceController::callback, this, std::placeholders::_1));
     }
     catch (...)
     {
-        return CallbackReturn::ERROR;
+        return controller_interface::CallbackReturn::ERROR;
     }
-    return CallbackReturn::SUCCESS;
+    return controller_interface::CallbackReturn::SUCCESS;
 }
 
 controller_interface::CallbackReturn ImpedanceController::on_deactivate(const rclcpp_lifecycle::State& /*previous_state*/)
@@ -102,22 +120,39 @@ controller_interface::CallbackReturn ImpedanceController::on_deactivate(const rc
     }
     catch (...)
     {
-        return CallbackReturn::ERROR;
+        return controller_interface::CallbackReturn::ERROR;
     }
 
-    return CallbackReturn::SUCCESS;
+    return controller_interface::CallbackReturn::SUCCESS;
 }
 
 void ImpedanceController::callback(const sensor_msgs::msg::JointState::SharedPtr msg)
 {
-    RCLCPP_INFO(this->get_node()->get_logger(), "Received Joint State Message");
+    RCLCPP_INFO(this->get_node()->get_logger(), "ImpedanceController::callback()");
+
+    if (msg->name.size() != command_interfaces_.size() || msg->position.size() != command_interfaces_.size())
+    {
+        RCLCPP_ERROR(this->get_node()->get_logger(), "Invalid JointState message");
+        return;
+    }
+
     for (size_t i = 0; i < msg->name.size(); i++)
     {
         RCLCPP_INFO(
             this->get_node()->get_logger(),
             "Joint: %s | Target: %f | Current: %f",
             msg->name[i].c_str(), msg->position[i], command_interfaces_[i].get_value());
-        // command_interfaces_[i].set_value(msg->position[i]);
+
+        const auto iter = JOINTS.find(msg->name[i]);
+        if (iter != JOINTS.end())
+        {
+            command_interfaces_[iter->second].set_value(msg->position[i]);
+        }
+        else
+        {
+            RCLCPP_WARN(this->get_node()->get_logger(),
+                        "Skipping unknown joint '%s'", msg->name[i].c_str());
+        }
     }
 }
 
