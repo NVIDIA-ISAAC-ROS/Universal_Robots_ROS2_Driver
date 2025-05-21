@@ -49,7 +49,6 @@ private:
   impedance_controller::Params params_;
 
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subscription_;
-
 };
 }  // namespace ur_controllers
 
