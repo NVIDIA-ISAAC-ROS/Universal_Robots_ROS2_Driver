@@ -109,6 +109,7 @@ controller_interface::CallbackReturn ImpedanceController::on_activate(const rclc
     {
         return controller_interface::CallbackReturn::ERROR;
     }
+
     return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -128,8 +129,6 @@ controller_interface::CallbackReturn ImpedanceController::on_deactivate(const rc
 
 void ImpedanceController::callback(const sensor_msgs::msg::JointState::SharedPtr msg)
 {
-    RCLCPP_INFO(this->get_node()->get_logger(), "ImpedanceController::callback()");
-
     if (msg->name.size() != command_interfaces_.size() || msg->position.size() != command_interfaces_.size())
     {
         RCLCPP_ERROR(this->get_node()->get_logger(), "Invalid JointState message");
@@ -138,11 +137,6 @@ void ImpedanceController::callback(const sensor_msgs::msg::JointState::SharedPtr
 
     for (size_t i = 0; i < msg->name.size(); i++)
     {
-        RCLCPP_INFO(
-            this->get_node()->get_logger(),
-            "Joint: %s | Target: %f | Current: %f",
-            msg->name[i].c_str(), msg->position[i], command_interfaces_[i].get_value());
-
         const auto iter = JOINTS.find(msg->name[i]);
         if (iter != JOINTS.end())
         {
