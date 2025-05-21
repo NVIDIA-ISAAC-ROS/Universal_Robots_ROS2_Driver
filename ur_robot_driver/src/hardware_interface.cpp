@@ -166,6 +166,13 @@ URPositionHardwareInterface::on_init(const hardware_interface::HardwareInfo& sys
       return hardware_interface::CallbackReturn::ERROR;
     }
 
+    // if (joint.command_interfaces[2].name != hardware_interface::HW_IF_EFFORT) {
+    //   RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"),
+    //                "Joint '%s' have %s command interfaces found as third command interface. '%s' expected.",
+    //                joint.name.c_str(), joint.command_interfaces[2].name.c_str(), hardware_interface::HW_IF_EFFORT);
+    //   return hardware_interface::CallbackReturn::ERROR;
+    // }
+
     if (joint.state_interfaces.size() != 3) {
       RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"), "Joint '%s' has %zu state interface. 3 expected.",
                    joint.name.c_str(), joint.state_interfaces.size());
@@ -1167,6 +1174,7 @@ hardware_interface::return_type URPositionHardwareInterface::prepare_command_mod
       const std::vector<std::pair<std::string, std::string>> start_modes_to_check{
         { info_.joints[i].name + "/" + hardware_interface::HW_IF_POSITION, hardware_interface::HW_IF_POSITION },
         { info_.joints[i].name + "/" + hardware_interface::HW_IF_VELOCITY, hardware_interface::HW_IF_VELOCITY },
+        { info_.joints[i].name + "/" + hardware_interface::HW_IF_EFFORT, hardware_interface::HW_IF_EFFORT },
         { tf_prefix + FORCE_MODE_GPIO + "/type", FORCE_MODE_GPIO },
         { tf_prefix + PASSTHROUGH_GPIO + "/setpoint_positions_" + std::to_string(i), PASSTHROUGH_GPIO },
         { tf_prefix + FREEDRIVE_MODE_GPIO + "/async_success", FREEDRIVE_MODE_GPIO },
@@ -1200,6 +1208,8 @@ hardware_interface::return_type URPositionHardwareInterface::prepare_command_mod
           StoppingInterface::STOP_POSITION },
         { info_.joints[i].name + "/" + hardware_interface::HW_IF_VELOCITY, hardware_interface::HW_IF_VELOCITY,
           StoppingInterface::STOP_VELOCITY },
+        { info_.joints[i].name + "/" + hardware_interface::HW_IF_EFFORT, hardware_interface::HW_IF_EFFORT,
+          StoppingInterface::STOP_IMPEDANCE },
         { tf_prefix + FORCE_MODE_GPIO + "/disable_cmd", FORCE_MODE_GPIO, StoppingInterface::STOP_FORCE_MODE },
         { tf_prefix + PASSTHROUGH_GPIO + "/setpoint_positions_" + std::to_string(i), PASSTHROUGH_GPIO,
           StoppingInterface::STOP_PASSTHROUGH },

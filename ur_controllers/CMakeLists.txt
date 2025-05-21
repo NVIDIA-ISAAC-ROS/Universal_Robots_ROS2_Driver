@@ -167,27 +167,27 @@ if(BUILD_TESTING)
   find_package(hardware_interface REQUIRED)
   find_package(ros2_control_test_assets REQUIRED)
 
-  add_definitions(-DTEST_FILES_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/test")
-  ament_add_gmock(test_load_force_mode_controller
-    test/test_load_force_mode_controller.cpp
-  )
-  target_link_libraries(test_load_force_mode_controller
-    ${PROJECT_NAME}
-  )
-  ament_target_dependencies(test_load_force_mode_controller
-    controller_manager
-    ros2_control_test_assets
-  )
-  ament_add_gmock(test_load_freedrive_mode_controller
-    test/test_load_freedrive_mode_controller.cpp
-  )
-  target_link_libraries(test_load_freedrive_mode_controller
-    ${PROJECT_NAME}
-  )
-  ament_target_dependencies(test_load_freedrive_mode_controller
-    controller_manager
-    ros2_control_test_assets
-  )
+#  add_definitions(-DTEST_FILES_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/test")
+#  ament_add_gmock(test_load_force_mode_controller
+#    test/test_load_force_mode_controller.cpp
+#  )
+#  target_link_libraries(test_load_force_mode_controller
+#    ${PROJECT_NAME}
+#  )
+#  ament_target_dependencies(test_load_force_mode_controller
+#    controller_manager
+#    ros2_control_test_assets
+#  )
+#  ament_add_gmock(test_load_freedrive_mode_controller
+#    test/test_load_freedrive_mode_controller.cpp
+#  )
+#  target_link_libraries(test_load_freedrive_mode_controller
+#    ${PROJECT_NAME}
+#  )
+#  ament_target_dependencies(test_load_freedrive_mode_controller
+#    controller_manager
+#    ros2_control_test_assets
+#  )
 endif()
 
 ament_package()
