@@ -33,6 +33,9 @@ controller_manager:
     ur_configuration_controller:
       type: ur_controllers/URConfigurationController
 
+    impedance_controller:
+      type: ur_controllers/ImpedanceController
+
 speed_scaling_state_broadcaster:
   ros__parameters:
     state_publish_rate: 100.0
@@ -158,3 +161,7 @@ tcp_pose_broadcaster:
     pose_name: $(var tf_prefix)tcp_pose
     tf:
       child_frame_id: $(var tf_prefix)tool0_controller
+
+impedance_controller:
+  ros__parameters:
+    tf_prefix: "$(var tf_prefix)"
