@@ -45,6 +45,9 @@ controller_manager:
     tool_contact_controller:
       type: ur_controllers/ToolContactController
 
+    impedance_controller:
+      type: ur_controllers/ImpedanceController
+
 speed_scaling_state_broadcaster:
   ros__parameters:
     state_publish_rate: 100.0
@@ -180,5 +183,9 @@ tcp_pose_broadcaster:
       child_frame_id: $(var tf_prefix)tool0_controller
 
 tool_contact_controller:
+  ros__parameters:
+    tf_prefix: "$(var tf_prefix)"
+
+impedance_controller:
   ros__parameters:
     tf_prefix: "$(var tf_prefix)"
