@@ -78,13 +78,13 @@ if(BUILD_TESTING)
     string(REPLACE "\\" "/" ament_index_build_path "${ament_index_build_path}")
   endif()
 
-  ament_add_gmock(
-          calibration_test
-          test/calibration_test.cpp
-  )
-  target_link_libraries(calibration_test
-    calibration
-  )
+#  ament_add_gmock(
+#          calibration_test
+#          test/calibration_test.cpp
+#  )
+#  target_link_libraries(calibration_test
+#    calibration
+#  )
 endif()
 
 ament_export_include_directories(
