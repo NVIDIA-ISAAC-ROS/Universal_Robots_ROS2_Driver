@@ -464,6 +464,19 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument(
+            "script_filename",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("ur_client_library"),
+                    "resources",
+                    "external_control.urscript",
+                ]
+            ),
+            description="URScript file to send to the robot.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
             "reverse_port",
             default_value="50001",
             description="Port that will be opened to send cyclic instructions from the driver to the robot controller.",
