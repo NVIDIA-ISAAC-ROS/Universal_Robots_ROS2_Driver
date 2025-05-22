@@ -79,6 +79,7 @@ def launch_setup(context, *args, **kwargs):
     tool_voltage = LaunchConfiguration("tool_voltage")
     reverse_ip = LaunchConfiguration("reverse_ip")
     script_command_port = LaunchConfiguration("script_command_port")
+    script_filename = LaunchConfiguration("script_filename")
     reverse_port = LaunchConfiguration("reverse_port")
     script_sender_port = LaunchConfiguration("script_sender_port")
     trajectory_port = LaunchConfiguration("trajectory_port")
@@ -91,9 +92,6 @@ def launch_setup(context, *args, **kwargs):
     )
     visual_params = PathJoinSubstitution(
         [FindPackageShare(description_package), "config", ur_type, "visual_parameters.yaml"]
-    )
-    script_filename = PathJoinSubstitution(
-        [FindPackageShare("ur_client_library"), "resources", "external_control.urscript"]
     )
     input_recipe_filename = PathJoinSubstitution(
         [FindPackageShare("ur_robot_driver"), "resources", "rtde_input_recipe.txt"]
@@ -638,6 +636,19 @@ def generate_launch_description():
             "script_command_port",
             default_value="50004",
             description="Port that will be opened to forward URScript commands to the robot.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "script_filename",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("ur_client_library"),
+                    "resources",
+                    "external_control.urscript",
+                ]
+            ),
+            description="URScript file to send to the robot.",
         )
     )
     declared_arguments.append(
