@@ -469,6 +469,8 @@ URPositionHardwareInterface::on_configure(const rclcpp_lifecycle::State& previou
 {
   RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Starting ...please wait...");
 
+  // Robot model
+  const std::string robot_model = info_.name;
   // The robot's IP address.
   const std::string robot_ip = info_.hardware_parameters["robot_ip"];
   // Path to the urscript code that will be sent to the robot
@@ -585,6 +587,7 @@ URPositionHardwareInterface::on_configure(const rclcpp_lifecycle::State& previou
   try {
     rtde_comm_has_been_started_ = false;
     urcl::UrDriverConfiguration driver_config;
+    driver_config.robot_model = robot_model;
     driver_config.robot_ip = robot_ip;
     driver_config.script_file = script_filename;
     driver_config.output_recipe_file = output_recipe_filename;
