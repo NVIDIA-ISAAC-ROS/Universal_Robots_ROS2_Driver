@@ -140,7 +140,10 @@ void ImpedanceController::callback(const sensor_msgs::msg::JointState::SharedPtr
         const auto iter = JOINTS.find(msg->name[i]);
         if (iter != JOINTS.end())
         {
-            command_interfaces_[iter->second].set_value(msg->position[i]);
+            if (!command_interfaces_[iter->second].set_value(msg->position[i])) {
+                RCLCPP_ERROR(this->get_node()->get_logger(),
+                             "Could not write to %s command interface", iter->first.c_str());
+            }
         }
         else
         {
