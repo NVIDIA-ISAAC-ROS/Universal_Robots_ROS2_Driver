@@ -84,6 +84,7 @@ enum StoppingInterface
   STOP_FORCE_MODE,
   STOP_FREEDRIVE,
   STOP_TOOL_CONTACT,
+  STOP_TORQUE,
 };
 
 // We define our own quaternion to use it as a buffer, since we need to pass pointers to the state
@@ -180,6 +181,7 @@ protected:
   urcl::vector6d_t urcl_position_commands_old_;
   urcl::vector6d_t urcl_velocity_commands_;
   urcl::vector6d_t urcl_impedance_commands_;
+  urcl::vector6d_t urcl_torque_commands_;
   urcl::vector6d_t urcl_joint_positions_;
   urcl::vector6d_t urcl_joint_velocities_;
   urcl::vector6d_t urcl_joint_efforts_;
@@ -232,6 +234,7 @@ protected:
   bool initialized_;
   double system_interface_initialized_;
   std::atomic_bool async_thread_shutdown_;
+  urcl::VersionInformation version_info_;
   double get_robot_software_version_major_;
   double get_robot_software_version_minor_;
   double get_robot_software_version_bugfix_;
@@ -309,6 +312,7 @@ protected:
   bool position_controller_running_;
   bool velocity_controller_running_;
   bool impedance_controller_running_;
+  bool torque_controller_running_;
   bool force_mode_controller_running_ = false;
 
   std::unique_ptr<urcl::UrDriver> ur_driver_;

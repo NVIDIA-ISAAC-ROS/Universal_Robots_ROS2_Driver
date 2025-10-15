@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2023, FZI Forschungszentrum Informatik
+# Copyright 2025, Universal Robots A/S
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -26,15 +26,17 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+
+import logging
 import os
 import sys
 import time
 import unittest
 
+import launch_testing
 import pytest
 import rclpy
-import rclpy.node
-from std_msgs.msg import String as StringMsg
+from rclpy.node import Node
 from ur_msgs.msg import IOStates
 
 sys.path.append(os.path.dirname(__file__))
@@ -45,20 +47,20 @@ from test_common import (  # noqa: E402
     generate_driver_test_description,
 )
 
-ROBOT_IP = "192.168.56.101"
-
 
 @pytest.mark.launch_test
-def generate_test_description():
-    return generate_driver_test_description()
+@launch_testing.parametrize("tf_prefix", [(""), ("my_ur_")])
+def generate_test_description(tf_prefix):
+    return generate_driver_test_description(tf_prefix=tf_prefix)
 
 
-class URScriptInterfaceTest(unittest.TestCase):
+class IOControllerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Initialize the ROS context
         rclpy.init()
-        cls.node = rclpy.node.Node("urscript_interface_test")
+        cls.node = Node("io_controller_test")
+        time.sleep(1)
         cls.init_robot(cls)
 
     @classmethod
@@ -72,72 +74,59 @@ class URScriptInterfaceTest(unittest.TestCase):
         self._controller_manager_interface = ControllerManagerInterface(self.node)
         self._io_status_controller_interface = IoStatusInterface(self.node)
 
-        self.urscript_pub = self.node.create_publisher(
-            StringMsg, "/urscript_interface/script_command", 1
-        )
-
     def setUp(self):
         self._dashboard_interface.start_robot()
         time.sleep(1)
         self.assertTrue(self._io_status_controller_interface.resend_robot_program().success)
 
-        self._controller_manager_interface.wait_for_controller(
-            "io_and_status_controller", target_state="active"
-        )
+    #
+    # Test functions
+    #
 
     def test_set_io(self):
-        """Test setting an IO using a direct program call."""
-        self.io_states_sub = self.node.create_subscription(
+        """Test to set an IO and check whether it has been set."""
+        # Create io callback to verify result
+        io_msg = None
+
+        def io_msg_cb(msg):
+            nonlocal io_msg
+            io_msg = msg
+
+        io_states_sub = self.node.create_subscription(
             IOStates,
             "/io_and_status_controller/io_states",
-            self.io_msg_cb,
+            io_msg_cb,
             rclpy.qos.qos_profile_system_default,
         )
 
-        self.set_digout_checked(0, True)
-        time.sleep(1)
-        self.set_digout_checked(0, False)
+        # Set pin 0 to 1.0
+        test_pin = 0
 
-        self.io_msg = None
-        self.io_states_sub = self.node.create_subscription(
-            IOStates,
-            "/io_and_status_controller/io_states",
-            self.io_msg_cb,
-            rclpy.qos.qos_profile_system_default,
-        )
+        logging.info("Setting pin %d to 1.0", test_pin)
+        self._io_status_controller_interface.set_io(fun=1, pin=test_pin, state=1.0)
 
-        script_msg = StringMsg(
-            data="sec my_program():\n  set_digital_out(0, False)\n  set_digital_out(1,True)\nend"
-        )
-        self.urscript_pub.publish(script_msg)
-        self.check_pin_states([0, 1], [False, True])
-
-        time.sleep(1)
-
-        script_msg = StringMsg(
-            data="sec my_program():\n  set_digital_out(0, True)\n  set_digital_out(1,False)\nend"
-        )
-        self.urscript_pub.publish(script_msg)
-        self.check_pin_states([0, 1], [True, False])
-
-    def io_msg_cb(self, msg):
-        self.io_msg = msg
-
-    def set_digout_checked(self, pin, state):
-        self.io_msg = None
-
-        script_msg = StringMsg(data=f"set_digital_out({pin}, {state})")
-        self.urscript_pub.publish(script_msg)
-
-        self.check_pin_states([pin], [state])
-
-    def check_pin_states(self, pins, states):
-        pin_states = [not x for x in states]
-        end_time = time.time() + 50
-        while pin_states != states and time.time() < end_time:
+        # Wait until the pin state has changed
+        pin_state = False
+        end_time = time.time() + 5
+        while not pin_state and time.time() < end_time:
             rclpy.spin_once(self.node, timeout_sec=0.1)
-            if self.io_msg is not None:
-                for i, pin_id in enumerate(pins):
-                    pin_states[i] = self.io_msg.digital_out_states[pin_id].state
-        self.assertIsNotNone(self.io_msg, "Did not receive an IO state in requested time.")
-        self.assertEqual(pin_states, states)
+            if io_msg is not None:
+                pin_state = io_msg.digital_out_states[test_pin].state
+
+        self.assertEqual(pin_state, 1.0)
+
+        # Set pin 0 to 0.0
+        logging.info("Setting pin %d to 0.0", test_pin)
+        self._io_status_controller_interface.set_io(fun=1, pin=test_pin, state=0.0)
+
+        # Wait until the pin state has changed back
+        end_time = time.time() + 5
+        while pin_state and time.time() < end_time:
+            rclpy.spin_once(self.node, timeout_sec=0.1)
+            if io_msg is not None:
+                pin_state = io_msg.digital_out_states[test_pin].state
+
+        self.assertEqual(pin_state, 0.0)
+
+        # Clean up io subscription
+        self.node.destroy_subscription(io_states_sub)

@@ -61,37 +61,50 @@ namespace ur_robot_driver
 URPositionHardwareInterface::URPositionHardwareInterface()
 {
   mode_compatibility_[hardware_interface::HW_IF_POSITION][hardware_interface::HW_IF_VELOCITY] = false;
+  mode_compatibility_[hardware_interface::HW_IF_POSITION][hardware_interface::HW_IF_EFFORT] = false;
   mode_compatibility_[hardware_interface::HW_IF_POSITION][FORCE_MODE_GPIO] = false;
   mode_compatibility_[hardware_interface::HW_IF_POSITION][PASSTHROUGH_GPIO] = false;
   mode_compatibility_[hardware_interface::HW_IF_POSITION][FREEDRIVE_MODE_GPIO] = false;
   mode_compatibility_[hardware_interface::HW_IF_POSITION][TOOL_CONTACT_GPIO] = true;
 
   mode_compatibility_[hardware_interface::HW_IF_VELOCITY][hardware_interface::HW_IF_POSITION] = false;
+  mode_compatibility_[hardware_interface::HW_IF_VELOCITY][hardware_interface::HW_IF_EFFORT] = false;
   mode_compatibility_[hardware_interface::HW_IF_VELOCITY][FORCE_MODE_GPIO] = false;
   mode_compatibility_[hardware_interface::HW_IF_VELOCITY][PASSTHROUGH_GPIO] = false;
   mode_compatibility_[hardware_interface::HW_IF_VELOCITY][FREEDRIVE_MODE_GPIO] = false;
   mode_compatibility_[hardware_interface::HW_IF_VELOCITY][TOOL_CONTACT_GPIO] = true;
 
+  mode_compatibility_[hardware_interface::HW_IF_EFFORT][hardware_interface::HW_IF_POSITION] = false;
+  mode_compatibility_[hardware_interface::HW_IF_EFFORT][hardware_interface::HW_IF_VELOCITY] = false;
+  mode_compatibility_[hardware_interface::HW_IF_EFFORT][FORCE_MODE_GPIO] = false;
+  mode_compatibility_[hardware_interface::HW_IF_EFFORT][PASSTHROUGH_GPIO] = false;
+  mode_compatibility_[hardware_interface::HW_IF_EFFORT][FREEDRIVE_MODE_GPIO] = false;
+  mode_compatibility_[hardware_interface::HW_IF_EFFORT][TOOL_CONTACT_GPIO] = true;
+
   mode_compatibility_[FORCE_MODE_GPIO][hardware_interface::HW_IF_POSITION] = false;
   mode_compatibility_[FORCE_MODE_GPIO][hardware_interface::HW_IF_VELOCITY] = false;
+  mode_compatibility_[FORCE_MODE_GPIO][hardware_interface::HW_IF_EFFORT] = false;
   mode_compatibility_[FORCE_MODE_GPIO][PASSTHROUGH_GPIO] = true;
   mode_compatibility_[FORCE_MODE_GPIO][FREEDRIVE_MODE_GPIO] = false;
   mode_compatibility_[FORCE_MODE_GPIO][TOOL_CONTACT_GPIO] = false;
 
   mode_compatibility_[PASSTHROUGH_GPIO][hardware_interface::HW_IF_POSITION] = false;
   mode_compatibility_[PASSTHROUGH_GPIO][hardware_interface::HW_IF_VELOCITY] = false;
+  mode_compatibility_[PASSTHROUGH_GPIO][hardware_interface::HW_IF_EFFORT] = false;
   mode_compatibility_[PASSTHROUGH_GPIO][FORCE_MODE_GPIO] = true;
   mode_compatibility_[PASSTHROUGH_GPIO][FREEDRIVE_MODE_GPIO] = false;
   mode_compatibility_[PASSTHROUGH_GPIO][TOOL_CONTACT_GPIO] = true;
 
   mode_compatibility_[FREEDRIVE_MODE_GPIO][hardware_interface::HW_IF_POSITION] = false;
   mode_compatibility_[FREEDRIVE_MODE_GPIO][hardware_interface::HW_IF_VELOCITY] = false;
+  mode_compatibility_[FREEDRIVE_MODE_GPIO][hardware_interface::HW_IF_EFFORT] = false;
   mode_compatibility_[FREEDRIVE_MODE_GPIO][FORCE_MODE_GPIO] = false;
   mode_compatibility_[FREEDRIVE_MODE_GPIO][PASSTHROUGH_GPIO] = false;
   mode_compatibility_[FREEDRIVE_MODE_GPIO][TOOL_CONTACT_GPIO] = false;
 
   mode_compatibility_[TOOL_CONTACT_GPIO][hardware_interface::HW_IF_POSITION] = true;
   mode_compatibility_[TOOL_CONTACT_GPIO][hardware_interface::HW_IF_VELOCITY] = true;
+  mode_compatibility_[TOOL_CONTACT_GPIO][hardware_interface::HW_IF_EFFORT] = true;
   mode_compatibility_[TOOL_CONTACT_GPIO][FORCE_MODE_GPIO] = false;
   mode_compatibility_[TOOL_CONTACT_GPIO][PASSTHROUGH_GPIO] = true;
   mode_compatibility_[TOOL_CONTACT_GPIO][FREEDRIVE_MODE_GPIO] = false;
@@ -123,6 +136,7 @@ URPositionHardwareInterface::on_init(const hardware_interface::HardwareInfo& sys
   position_controller_running_ = false;
   velocity_controller_running_ = false;
   impedance_controller_running_ = false;
+  torque_controller_running_ = false;
   freedrive_mode_controller_running_ = false;
   passthrough_trajectory_controller_running_ = false;
   tool_contact_controller_running_ = false;
@@ -146,51 +160,55 @@ URPositionHardwareInterface::on_init(const hardware_interface::HardwareInfo& sys
   trajectory_joint_accelerations_.reserve(32768);
 
   for (const hardware_interface::ComponentInfo& joint : info_.joints) {
-    if (joint.command_interfaces.size() != 2) {
+    auto has_cmd_interface = [](const hardware_interface::ComponentInfo& joint, const std::string& interface_name) {
+      auto it = find_if(
+          joint.command_interfaces.begin(), joint.command_interfaces.end(),
+          [&interface_name](const hardware_interface::InterfaceInfo& obj) { return obj.name == interface_name; });
+      return it != joint.command_interfaces.end();
+    };
+
+    if (!has_cmd_interface(joint, hardware_interface::HW_IF_POSITION)) {
       RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"),
-                   "Joint '%s' has %zu command interfaces found. 2 expected.", joint.name.c_str(),
-                   joint.command_interfaces.size());
+                   "Joint '%s' does not contain a '%s' command interface.", joint.name.c_str(),
+                   hardware_interface::HW_IF_POSITION);
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (joint.command_interfaces[0].name != hardware_interface::HW_IF_POSITION) {
+    if (!has_cmd_interface(joint, hardware_interface::HW_IF_VELOCITY)) {
       RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"),
-                   "Joint '%s' have %s command interfaces found as first command interface. '%s' expected.",
-                   joint.name.c_str(), joint.command_interfaces[0].name.c_str(), hardware_interface::HW_IF_POSITION);
+                   "Joint '%s' does not contain a '%s' command interface.", joint.name.c_str(),
+                   hardware_interface::HW_IF_VELOCITY);
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (joint.command_interfaces[1].name != hardware_interface::HW_IF_VELOCITY) {
+    // We treat the torque command interface as optional here for now. This should ensure backwards
+    // compatibility with older descriptions.
+
+    auto has_state_interface = [](const hardware_interface::ComponentInfo& joint, const std::string& interface_name) {
+      auto it = find_if(
+          joint.state_interfaces.begin(), joint.state_interfaces.end(),
+          [&interface_name](const hardware_interface::InterfaceInfo& obj) { return obj.name == interface_name; });
+      return it != joint.state_interfaces.end();
+    };
+
+    if (!has_state_interface(joint, hardware_interface::HW_IF_POSITION)) {
       RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"),
-                   "Joint '%s' have %s command interfaces found as second command interface. '%s' expected.",
-                   joint.name.c_str(), joint.command_interfaces[1].name.c_str(), hardware_interface::HW_IF_VELOCITY);
+                   "Joint '%s' does not contain a '%s' state interface.", joint.name.c_str(),
+                   hardware_interface::HW_IF_POSITION);
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (joint.state_interfaces.size() != 3) {
-      RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"), "Joint '%s' has %zu state interface. 3 expected.",
-                   joint.name.c_str(), joint.state_interfaces.size());
+    if (!has_state_interface(joint, hardware_interface::HW_IF_VELOCITY)) {
+      RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"),
+                   "Joint '%s' does not contain a '%s' state interface.", joint.name.c_str(),
+                   hardware_interface::HW_IF_VELOCITY);
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (joint.state_interfaces[0].name != hardware_interface::HW_IF_POSITION) {
+    if (!has_state_interface(joint, hardware_interface::HW_IF_EFFORT)) {
       RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"),
-                   "Joint '%s' have %s state interface as first state interface. '%s' expected.", joint.name.c_str(),
-                   joint.state_interfaces[0].name.c_str(), hardware_interface::HW_IF_POSITION);
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-
-    if (joint.state_interfaces[1].name != hardware_interface::HW_IF_VELOCITY) {
-      RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"),
-                   "Joint '%s' have %s state interface as second state interface. '%s' expected.", joint.name.c_str(),
-                   joint.state_interfaces[1].name.c_str(), hardware_interface::HW_IF_VELOCITY);
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-
-    if (joint.state_interfaces[2].name != hardware_interface::HW_IF_EFFORT) {
-      RCLCPP_FATAL(rclcpp::get_logger("URPositionHardwareInterface"),
-                   "Joint '%s' have %s state interface as third state interface. '%s' expected.", joint.name.c_str(),
-                   joint.state_interfaces[2].name.c_str(), hardware_interface::HW_IF_EFFORT);
+                   "Joint '%s' does not contain a '%s' state interface.", joint.name.c_str(),
+                   hardware_interface::HW_IF_EFFORT);
       return hardware_interface::CallbackReturn::ERROR;
     }
   }
@@ -324,6 +342,12 @@ std::vector<hardware_interface::StateInterface> URPositionHardwareInterface::exp
 
 std::vector<hardware_interface::CommandInterface> URPositionHardwareInterface::export_command_interfaces()
 {
+  auto has_cmd_interface = [](const hardware_interface::ComponentInfo& joint, const std::string& interface_name) {
+    auto it =
+        find_if(joint.command_interfaces.begin(), joint.command_interfaces.end(),
+                [&interface_name](const hardware_interface::InterfaceInfo& obj) { return obj.name == interface_name; });
+    return it != joint.command_interfaces.end();
+  };
   std::vector<hardware_interface::CommandInterface> command_interfaces;
   for (size_t i = 0; i < info_.joints.size(); ++i) {
     command_interfaces.emplace_back(hardware_interface::CommandInterface(
@@ -638,11 +662,11 @@ URPositionHardwareInterface::on_configure(const rclcpp_lifecycle::State& previou
   }
 
   // Export version information to state interfaces
-  urcl::VersionInformation version_info = ur_driver_->getVersion();
-  get_robot_software_version_major_ = version_info.major;
-  get_robot_software_version_minor_ = version_info.minor;
-  get_robot_software_version_build_ = version_info.build;
-  get_robot_software_version_bugfix_ = version_info.bugfix;
+  version_info_ = ur_driver_->getVersion();
+  get_robot_software_version_major_ = version_info_.major;
+  get_robot_software_version_minor_ = version_info_.minor;
+  get_robot_software_version_build_ = version_info_.build;
+  get_robot_software_version_bugfix_ = version_info_.bugfix;
 
   async_thread_ = std::make_shared<std::thread>(&URPositionHardwareInterface::asyncThread, this);
 
@@ -820,6 +844,7 @@ hardware_interface::return_type URPositionHardwareInterface::read(const rclcpp::
       urcl_position_commands_ = urcl_position_commands_old_ = urcl_joint_positions_;
       urcl_velocity_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
       urcl_impedance_commands_ = urcl_joint_positions_;
+      urcl_torque_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
       target_speed_fraction_cmd_ = NO_NEW_CMD_;
       resend_robot_program_cmd_ = NO_NEW_CMD_;
       zero_ftsensor_cmd_ = NO_NEW_CMD_;
@@ -857,6 +882,9 @@ hardware_interface::return_type URPositionHardwareInterface::write(const rclcpp:
 
     } else if (impedance_controller_running_) {
       ur_driver_->writeJointCommand(urcl_impedance_commands_, urcl::comm::ControlMode::MODE_IMPEDANCE, receive_timeout_);
+
+    } else if (torque_controller_running_) {
+      ur_driver_->writeJointCommand(urcl_torque_commands_, urcl::comm::ControlMode::MODE_TORQUE, receive_timeout_);
 
     } else if (freedrive_mode_controller_running_ && freedrive_activated_) {
       ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_NOOP);
@@ -1194,6 +1222,19 @@ hardware_interface::return_type URPositionHardwareInterface::prepare_command_mod
     }
   }
 
+  // effort control is only available from 5.23.0 / 10.10.0
+  if (std::any_of(start_modes_.begin(), start_modes_.end(), [&](const std::vector<std::string>& modes) {
+        return std::any_of(modes.begin(), modes.end(),
+                           [&](const std::string& mode) { return mode == hardware_interface::HW_IF_EFFORT; });
+      })) {
+    if ((version_info_.major == 5 && version_info_.minor < 23) ||
+        (version_info_.major == 10 && version_info_.minor < 10) || version_info_.major < 5) {
+      RCLCPP_ERROR(get_logger(), "Requested to use effort interface on a robot version that doesn't support it. Torque "
+                                 "control is available from robot software 5.23.0 / 10.10.0 on.");
+      return hardware_interface::return_type::ERROR;
+    }
+  }
+
   if (!std::all_of(start_modes_.begin() + 1, start_modes_.end(),
                    [&](const std::vector<std::string>& other) { return other == start_modes_[0]; })) {
     RCLCPP_ERROR(get_logger(), "Start modes of all joints have to be the same.");
@@ -1256,6 +1297,11 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
     velocity_controller_running_ = false;
     urcl_velocity_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
   }
+  if (stop_modes_[0].size() != 0 &&
+      std::find(stop_modes_[0].begin(), stop_modes_[0].end(), StoppingInterface::STOP_TORQUE) != stop_modes_[0].end()) {
+    torque_controller_running_ = false;
+    urcl_torque_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
+  }
   if (stop_modes_[0].size() != 0 && std::find(stop_modes_[0].begin(), stop_modes_[0].end(),
                                               StoppingInterface::STOP_IMPEDANCE) != stop_modes_[0].end()) {
     impedance_controller_running_ = false;
@@ -1292,6 +1338,7 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
                                             hardware_interface::HW_IF_POSITION) != start_modes_[0].end()) {
     velocity_controller_running_ = false;
     impedance_controller_running_ = false;
+    torque_controller_running_ = false;
     passthrough_trajectory_controller_running_ = false;
     urcl_position_commands_ = urcl_position_commands_old_ = urcl_joint_positions_;
     position_controller_running_ = true;
@@ -1300,6 +1347,7 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
                                                       hardware_interface::HW_IF_VELOCITY) != start_modes_[0].end()) {
     position_controller_running_ = false;
     impedance_controller_running_ = false;
+    torque_controller_running_ = false;
     passthrough_trajectory_controller_running_ = false;
     urcl_velocity_commands_ = { { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
     velocity_controller_running_ = true;
@@ -1310,6 +1358,7 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
     passthrough_trajectory_controller_running_ = false;
     urcl_impedance_commands_ = urcl_joint_positions_;
     impedance_controller_running_ = true;
+    torque_controller_running_ = false;
   }
   if (start_modes_[0].size() != 0 &&
       std::find(start_modes_[0].begin(), start_modes_[0].end(), FORCE_MODE_GPIO) != start_modes_[0].end()) {
@@ -1320,6 +1369,7 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
     velocity_controller_running_ = false;
     position_controller_running_ = false;
     impedance_controller_running_ = false;
+    torque_controller_running_ = false;
     passthrough_trajectory_controller_running_ = true;
     passthrough_trajectory_abort_ = 0.0;
   }
@@ -1328,6 +1378,7 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
     velocity_controller_running_ = false;
     position_controller_running_ = false;
     impedance_controller_running_ = false;
+    torque_controller_running_ = false;
     freedrive_mode_controller_running_ = true;
     freedrive_activated_ = false;
   }

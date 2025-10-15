@@ -48,23 +48,29 @@ from test_common import (  # noqa: E402
     generate_driver_test_description,
 )
 
+ALL_CONTROLLERS = [
+    "scaled_joint_trajectory_controller",
+    "joint_trajectory_controller",
+    "forward_position_controller",
+    "forward_velocity_controller",
+    "passthrough_trajectory_controller",
+    "force_mode_controller",
+    "freedrive_mode_controller",
+]
+
 
 @pytest.mark.launch_test
-@launch_testing.parametrize(
-    "tf_prefix",
-    [""],
-    # [(""), ("my_ur_")],
-)
+@launch_testing.parametrize("tf_prefix", [(""), ("my_ur_")])
 def generate_test_description(tf_prefix):
     return generate_driver_test_description(tf_prefix=tf_prefix)
 
 
-class RobotDriverTest(unittest.TestCase):
+class ControllerSwitchTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Initialize the ROS context
         rclpy.init()
-        cls.node = Node("robot_driver_test")
+        cls.node = Node("controller_switching_test")
         time.sleep(1)
         cls.init_robot(cls)
 
@@ -78,6 +84,8 @@ class RobotDriverTest(unittest.TestCase):
         self._dashboard_interface = DashboardInterface(self.node)
         self._controller_manager_interface = ControllerManagerInterface(self.node)
         self._io_status_controller_interface = IoStatusInterface(self.node)
+        for controller in ALL_CONTROLLERS:
+            self._controller_manager_interface.wait_for_controller(controller)
 
     def setUp(self):
         self._dashboard_interface.start_robot()
@@ -89,15 +97,7 @@ class RobotDriverTest(unittest.TestCase):
         self.assertTrue(
             self._controller_manager_interface.switch_controller(
                 strictness=SwitchController.Request.BEST_EFFORT,
-                deactivate_controllers=[
-                    "scaled_joint_trajectory_controller",
-                    "joint_trajectory_controller",
-                    "forward_position_controller",
-                    "forward_velocity_controller",
-                    "passthrough_trajectory_controller",
-                    "force_mode_controller",
-                    "freedrive_mode_controller",
-                ],
+                deactivate_controllers=ALL_CONTROLLERS,
             ).ok
         )
 
@@ -126,15 +126,7 @@ class RobotDriverTest(unittest.TestCase):
         self.assertTrue(
             self._controller_manager_interface.switch_controller(
                 strictness=SwitchController.Request.BEST_EFFORT,
-                deactivate_controllers=[
-                    "scaled_joint_trajectory_controller",
-                    "joint_trajectory_controller",
-                    "forward_position_controller",
-                    "forward_velocity_controller",
-                    "force_mode_controller",
-                    "passthrough_trajectory_controller",
-                    "freedrive_mode_controller",
-                ],
+                deactivate_controllers=ALL_CONTROLLERS,
             ).ok
         )
         self.assertFalse(
@@ -231,6 +223,14 @@ class RobotDriverTest(unittest.TestCase):
             self._controller_manager_interface.switch_controller(
                 strictness=SwitchController.Request.STRICT,
                 activate_controllers=[
+                    "forward_effort_controller",
+                ],
+            ).ok
+        )
+        self.assertFalse(
+            self._controller_manager_interface.switch_controller(
+                strictness=SwitchController.Request.STRICT,
+                activate_controllers=[
                     "freedrive_mode_controller",
                 ],
             ).ok
@@ -261,7 +261,9 @@ class RobotDriverTest(unittest.TestCase):
             ).ok
         )
 
-    def test_activating_controller_with_running_passthrough_trajectory_controller_fails(self):
+    def test_activating_controller_with_running_passthrough_trajectory_controller_fails(
+        self,
+    ):
         # Having a position-based controller active, no other controller should be able to
         # activate.
         self.assertTrue(
@@ -332,14 +334,7 @@ class RobotDriverTest(unittest.TestCase):
         self.assertTrue(
             self._controller_manager_interface.switch_controller(
                 strictness=SwitchController.Request.BEST_EFFORT,
-                deactivate_controllers=[
-                    "scaled_joint_trajectory_controller",
-                    "joint_trajectory_controller",
-                    "forward_position_controller",
-                    "forward_velocity_controller",
-                    "passthrough_trajectory_controller",
-                    "force_mode_controller",
-                ],
+                deactivate_controllers=ALL_CONTROLLERS,
             ).ok
         )
 
@@ -411,15 +406,7 @@ class RobotDriverTest(unittest.TestCase):
         self.assertTrue(
             self._controller_manager_interface.switch_controller(
                 strictness=SwitchController.Request.BEST_EFFORT,
-                deactivate_controllers=[
-                    "scaled_joint_trajectory_controller",
-                    "joint_trajectory_controller",
-                    "forward_position_controller",
-                    "forward_velocity_controller",
-                    "passthrough_trajectory_controller",
-                    "force_mode_controller",
-                    "tool_contact_controller",
-                ],
+                deactivate_controllers=ALL_CONTROLLERS,
             ).ok
         )
 

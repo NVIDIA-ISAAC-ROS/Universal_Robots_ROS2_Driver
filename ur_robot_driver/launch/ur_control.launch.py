@@ -159,6 +159,18 @@ def launch_setup(context):
         arguments=["-d", rviz_config_file],
     )
 
+    trajectory_until_node = Node(
+        package="ur_robot_driver",
+        executable="trajectory_until_node",
+        name="trajectory_until_node",
+        output="screen",
+        parameters=[
+            {
+                "motion_controller": initial_joint_controller,
+            },
+        ],
+    )
+
     # Spawn controllers
     def controller_spawner(controllers, active=True):
         inactive_flags = ["--inactive"] if not active else []
@@ -188,6 +200,7 @@ def launch_setup(context):
         "joint_trajectory_controller",
         "forward_velocity_controller",
         "forward_position_controller",
+        "forward_effort_controller",
         "force_mode_controller",
         "passthrough_trajectory_controller",
         "freedrive_mode_controller",
@@ -223,6 +236,7 @@ def launch_setup(context):
         urscript_interface,
         rsp,
         rviz_node,
+        trajectory_until_node,
     ] + controller_spawners
 
     return nodes_to_start
@@ -237,15 +251,17 @@ def generate_launch_description():
             description="Type/series of used UR robot.",
             choices=[
                 "ur3",
-                "ur3e",
                 "ur5",
+                "ur10",
+                "ur3e",
                 "ur5e",
                 "ur7e",
-                "ur10",
                 "ur10e",
                 "ur12e",
                 "ur16e",
+                "ur8long",
                 "ur15",
+                "ur18",
                 "ur20",
                 "ur30",
             ],

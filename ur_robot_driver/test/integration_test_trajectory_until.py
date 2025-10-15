@@ -31,7 +31,6 @@ import os
 import sys
 import time
 import unittest
-import logging
 
 import pytest
 
@@ -40,8 +39,10 @@ import rclpy
 from rclpy.node import Node
 
 from controller_manager_msgs.srv import SwitchController
-from ur_msgs.action import ToolContact
-from action_msgs.msg import GoalStatus
+from ur_msgs.action import FollowJointTrajectoryUntil
+from action_msgs.srv import CancelGoal_Response
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from builtin_interfaces.msg import Duration
 
 sys.path.append(os.path.dirname(__file__))
 from test_common import (  # noqa: E402
@@ -49,25 +50,29 @@ from test_common import (  # noqa: E402
     DashboardInterface,
     IoStatusInterface,
     ActionInterface,
+    ROBOT_JOINTS,
+    TIMEOUT_EXECUTE_TRAJECTORY,
     generate_driver_test_description,
 )
 
 
 @pytest.mark.launch_test
 @launch_testing.parametrize(
-    "tf_prefix",
-    [(""), ("my_ur_")],
+    "tf_prefix, initial_joint_controller",
+    [("", "scaled_joint_trajectory_controller"), ("my_ur_", "passthrough_trajectory_controller")],
 )
-def generate_test_description(tf_prefix):
-    return generate_driver_test_description(tf_prefix=tf_prefix)
+def generate_test_description(tf_prefix, initial_joint_controller):
+    return generate_driver_test_description(
+        tf_prefix=tf_prefix, initial_joint_controller=initial_joint_controller
+    )
 
 
-class ToolContactTest(unittest.TestCase):
+class RobotDriverTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Initialize the ROS context
         rclpy.init()
-        cls.node = Node("tool_contact_test")
+        cls.node = Node("robot_driver_test")
         time.sleep(1)
         cls.init_robot(cls)
 
@@ -81,9 +86,15 @@ class ToolContactTest(unittest.TestCase):
         self._dashboard_interface = DashboardInterface(self.node)
         self._controller_manager_interface = ControllerManagerInterface(self.node)
         self._io_status_controller_interface = IoStatusInterface(self.node)
-        self._tool_contact_interface = ActionInterface(
-            self.node, "/tool_contact_controller/detect_tool_contact", ToolContact
+        self._trajectory_until_interface = ActionInterface(
+            self.node, "/trajectory_until_node/execute", FollowJointTrajectoryUntil
         )
+        self.test_traj = {
+            "waypts": [[1.5, -1.5, 0.0, -1.5, -1.5, -1.5], [2.1, -1.2, 0.0, -2.4, -1.5, -1.5]],
+            "time_vec": [Duration(sec=3, nanosec=0), Duration(sec=6, nanosec=0)],
+        }
+
+        self._controller_manager_interface.wait_for_controller("tool_contact_controller")
 
     def setUp(self):
         self._dashboard_interface.start_robot()
@@ -94,80 +105,58 @@ class ToolContactTest(unittest.TestCase):
     # Tests
     #
 
-    def test_start_tool_contact_controller(self):
+    def test_trajectory_with_tool_contact_no_trigger_succeeds(
+        self, tf_prefix, initial_joint_controller
+    ):
+        self._controller_manager_interface.wait_for_controller(initial_joint_controller)
         self.assertTrue(
             self._controller_manager_interface.switch_controller(
                 strictness=SwitchController.Request.BEST_EFFORT,
                 activate_controllers=["tool_contact_controller"],
             ).ok
         )
+        trajectory = JointTrajectory()
+        trajectory.joint_names = [tf_prefix + joint for joint in ROBOT_JOINTS]
 
-    def test_goal_can_be_canceled(self):
-        self.assertTrue(
-            self._controller_manager_interface.switch_controller(
-                strictness=SwitchController.Request.BEST_EFFORT,
-                activate_controllers=["tool_contact_controller"],
-            ).ok
-        )
-        goal_handle = self._tool_contact_interface.send_goal()
-        self.assertTrue(goal_handle.accepted)
-
-        cancel_res = self._tool_contact_interface.cancel_goal(goal_handle)
-        self.assertEqual(cancel_res.return_code, 0)
-
-    def test_deactivate_controller_aborts_action(self):
-        self.assertTrue(
-            self._controller_manager_interface.switch_controller(
-                strictness=SwitchController.Request.BEST_EFFORT,
-                activate_controllers=["tool_contact_controller"],
-            ).ok
-        )
-
-        goal_handle = self._tool_contact_interface.send_goal()
-        self.assertTrue(goal_handle.accepted)
-
-        self.assertTrue(
-            self._controller_manager_interface.switch_controller(
-                strictness=SwitchController.Request.BEST_EFFORT,
-                deactivate_controllers=["tool_contact_controller"],
-            ).ok
-        )
-        future_res = goal_handle.get_result_async()
-
-        timeout = 5.0
-        logging.info("Waiting for action result from controller with timeout %fs", timeout)
-        rclpy.spin_until_future_complete(self.node, future_res, timeout_sec=timeout)
-
-        if future_res.result() is not None:
-            logging.info("  Received result: %s", future_res.result().result)
-            # Check status of goal handle, as result does not contain information about the status of the action. Only the empty result definition.
-            self.assertEqual(future_res.result().status, GoalStatus.STATUS_ABORTED)
-        else:
-            raise Exception(
-                f"Exception while calling action '{self.__action_name}': {future_res.exception()}"
+        trajectory.points = [
+            JointTrajectoryPoint(
+                positions=self.test_traj["waypts"][i], time_from_start=self.test_traj["time_vec"][i]
             )
-
-    def test_inactive_controller_rejects_actions(self):
-        self.assertTrue(
-            self._controller_manager_interface.switch_controller(
-                strictness=SwitchController.Request.BEST_EFFORT,
-                deactivate_controllers=["tool_contact_controller"],
-            ).ok
+            for i in range(len(self.test_traj["waypts"]))
+        ]
+        goal_handle = self._trajectory_until_interface.send_goal(
+            trajectory=trajectory, until_type=FollowJointTrajectoryUntil.Goal.TOOL_CONTACT
         )
-
-        goal_handle = self._tool_contact_interface.send_goal()
-        self.assertFalse(goal_handle.accepted)
-
-    def test_busy_controller_rejects_actions(self):
-        self.assertTrue(
-            self._controller_manager_interface.switch_controller(
-                strictness=SwitchController.Request.BEST_EFFORT,
-                activate_controllers=["tool_contact_controller"],
-            ).ok
-        )
-
-        goal_handle = self._tool_contact_interface.send_goal()
         self.assertTrue(goal_handle.accepted)
+        if goal_handle.accepted:
+            result = self._trajectory_until_interface.get_result(
+                goal_handle, TIMEOUT_EXECUTE_TRAJECTORY
+            )
+        self.assertEqual(result.error_code, FollowJointTrajectoryUntil.Result.SUCCESSFUL)
+        self.assertEqual(
+            result.until_condition_result, FollowJointTrajectoryUntil.Result.NOT_TRIGGERED
+        )
 
-        goal_handle = self._tool_contact_interface.send_goal()
-        self.assertFalse(goal_handle.accepted)
+    def test_trajectory_until_can_cancel(self, tf_prefix, initial_joint_controller):
+        self._controller_manager_interface.wait_for_controller(initial_joint_controller)
+        self.assertTrue(
+            self._controller_manager_interface.switch_controller(
+                strictness=SwitchController.Request.BEST_EFFORT,
+                activate_controllers=["tool_contact_controller", initial_joint_controller],
+            ).ok
+        )
+        trajectory = JointTrajectory()
+        trajectory.joint_names = [tf_prefix + joint for joint in ROBOT_JOINTS]
+
+        trajectory.points = [
+            JointTrajectoryPoint(
+                positions=self.test_traj["waypts"][i], time_from_start=self.test_traj["time_vec"][i]
+            )
+            for i in range(len(self.test_traj["waypts"]))
+        ]
+        goal_handle = self._trajectory_until_interface.send_goal(
+            trajectory=trajectory, until_type=FollowJointTrajectoryUntil.Goal.TOOL_CONTACT
+        )
+        self.assertTrue(goal_handle.accepted)
+        result = self._trajectory_until_interface.cancel_goal(goal_handle)
+        self.assertEqual(result.return_code, CancelGoal_Response.ERROR_NONE)
