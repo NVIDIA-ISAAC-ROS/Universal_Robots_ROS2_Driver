@@ -45,6 +45,9 @@ controller_manager:
     tool_contact_controller:
       type: ur_controllers/ToolContactController
 
+    impedance_controller:
+      type: ur_controllers/ImpedanceController
+
     gravity_update_controller:
       type: ur_controllers/GravityUpdateController
 
@@ -195,6 +198,17 @@ tcp_pose_broadcaster:
 tool_contact_controller:
   ros__parameters:
     tf_prefix: "$(var tf_prefix)"
+
+impedance_controller:
+  ros__parameters:
+    tf_prefix: "$(var tf_prefix)"
+    joints:
+      - $(var tf_prefix)shoulder_pan_joint
+      - $(var tf_prefix)shoulder_lift_joint
+      - $(var tf_prefix)elbow_joint
+      - $(var tf_prefix)wrist_1_joint
+      - $(var tf_prefix)wrist_2_joint
+      - $(var tf_prefix)wrist_3_joint
 
 
 motion_primitive_forward_controller:

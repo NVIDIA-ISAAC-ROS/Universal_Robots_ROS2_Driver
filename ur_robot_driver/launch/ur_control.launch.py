@@ -222,6 +222,7 @@ def launch_setup(context):
         "passthrough_trajectory_controller",
         "freedrive_mode_controller",
         "tool_contact_controller",
+        "impedance_controller",
         "motion_primitive_forward_controller",
         "twist_controller",
     ]

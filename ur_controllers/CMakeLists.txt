@@ -16,6 +16,7 @@ find_package(pluginlib REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(rcutils REQUIRED)
 find_package(realtime_tools REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -38,6 +39,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp_lifecycle
   rcutils
   realtime_tools
+  sensor_msgs
   std_msgs
   std_srvs
   tf2_geometry_msgs
@@ -98,6 +100,11 @@ generate_parameter_library(
 )
 
 generate_parameter_library(
+  impedance_controller_parameters
+  src/impedance_controller_parameters.yaml
+)
+
+generate_parameter_library(
   ur_configuration_controller_parameters
   src/ur_configuration_controller_parameters.yaml
 )
@@ -111,6 +118,7 @@ add_library(${PROJECT_NAME} SHARED
   src/gpio_controller.cpp
   src/gravity_update_controller.cpp
   src/passthrough_trajectory_controller.cpp
+  src/impedance_controller.cpp
   src/twist_controller.cpp
   src/ur_configuration_controller.cpp)
 
@@ -126,10 +134,12 @@ target_link_libraries(${PROJECT_NAME}
   speed_scaling_state_broadcaster_parameters
   freedrive_mode_controller_parameters
   passthrough_trajectory_controller_parameters
+  impedance_controller_parameters
   ur_configuration_controller_parameters
   twist_controller_parameters
   ${geometry_msgs_TARGETS}
   ${lifecycle_msgs_TARGETS}
+  ${sensor_msgs_TARGETS}
   ${std_msgs_TARGETS}
   ${std_srvs_TARGETS}
   ${tf2_geometry_msgs_TARGETS}

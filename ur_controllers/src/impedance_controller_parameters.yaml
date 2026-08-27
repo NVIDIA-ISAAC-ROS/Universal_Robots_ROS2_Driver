@@ -1,0 +1,15 @@
+impedance_controller:
+  tf_prefix: {
+    type: string,
+    default_value: "",
+    description: "URDF prefix of the corresponding arm"
+  }
+  joints: {
+    type: string_array,
+    default_value: [],
+    description: "Fully qualified joint names accepted in target commands",
+    read_only: true,
+    validation: {
+      unique<>: null,
+    }
+  }

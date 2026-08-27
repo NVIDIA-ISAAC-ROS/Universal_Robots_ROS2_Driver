@@ -10,6 +10,7 @@
   <maintainer email="ros@universal-robots.com">Universal Robots A/S</maintainer>
 
   <license>BSD-3-Clause</license>
+  <license>Apache-2.0</license>
 
   <url type="bugtracker">https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/issues</url>
   <url type="repository">https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver</url>
@@ -35,6 +36,7 @@
   <depend>rclcpp_lifecycle</depend>
   <depend>rcutils</depend>
   <depend>realtime_tools</depend>
+  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>tf2_geometry_msgs</depend>
