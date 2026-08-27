@@ -2,7 +2,7 @@ repositories:
   Universal_Robots_Client_Library:
     type: git
     url: https://github.com/NVIDIA-ISAAC-ROS/Universal_Robots_Client_Library.git
-    version: lyrical
+    version: 6334947fd53ff9d034ff00e6de661703b4235524
   Universal_Robots_ROS2_Description:
     type: git
     url: https://github.com/UniversalRobots/Universal_Robots_ROS2_Description.git
