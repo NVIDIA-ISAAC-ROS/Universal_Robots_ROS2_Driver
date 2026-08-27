@@ -227,6 +227,14 @@ if(BUILD_TESTING)
     controller_manager::controller_manager
     ros2_control_test_assets::ros2_control_test_assets
   )
+  ament_add_gmock(test_load_impedance_controller
+    test/test_load_impedance_controller.cpp
+  )
+  target_link_libraries(test_load_impedance_controller
+    ${PROJECT_NAME}
+    controller_manager::controller_manager
+    ros2_control_test_assets::ros2_control_test_assets
+  )
 endif()
 
 ament_package()

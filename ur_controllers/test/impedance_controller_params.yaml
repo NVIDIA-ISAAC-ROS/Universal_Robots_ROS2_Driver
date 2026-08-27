@@ -1,0 +1,11 @@
+---
+impedance_controller:
+  ros__parameters:
+    tf_prefix: "test_"
+    joints:
+      - test_shoulder_pan_joint
+      - test_shoulder_lift_joint
+      - test_elbow_joint
+      - test_wrist_1_joint
+      - test_wrist_2_joint
+      - test_wrist_3_joint

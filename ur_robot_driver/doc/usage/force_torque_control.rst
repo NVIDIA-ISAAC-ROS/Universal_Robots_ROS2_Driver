@@ -94,6 +94,33 @@ experienced by the robot. The vector in the request points towards the Earth's c
 expressed in any frame transformable to the robot's ``base`` frame. It is started as active by
 default in the driver's launch file.
 
+Joint Impedance Control
+-----------------------
+
+The ``impedance_controller`` sends joint-position targets to a robot-side impedance loop while
+leaving the driver's joint ``effort`` interfaces available for direct torque control. It is
+supported for ``ur3e``, ``ur5e``, ``ur10e``, and ``ur16e`` robots running PolyScope 5.23 or later,
+or PolyScope X 10.11 or later.
+
+To activate the controller, deactivate the active motion controller first:
+
+.. code-block:: console
+
+   $ ros2 control switch_controllers --deactivate joint_trajectory_controller \
+     --activate impedance_controller
+
+Publish ``sensor_msgs/msg/JointState`` commands on the relative ``target_joint_positions`` topic.
+Each command must contain exactly the six configured joint names and six finite positions. Joint
+names may be in any order; unknown, duplicate, missing, or non-finite values reject the entire
+command. The controller holds the last valid target until it receives another valid command or is
+deactivated.
+
+.. warning::
+
+   The impedance controller uses fixed, model-specific gains and torque limits. It is mutually
+   exclusive with all other motion, force-mode, freedrive, tool-contact, and trajectory
+   controllers.
+
 Force Mode Controller
 ---------------------
 
