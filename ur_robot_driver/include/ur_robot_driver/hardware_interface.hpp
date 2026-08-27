@@ -97,6 +97,7 @@ enum StoppingInterface
   STOP_TOOL_CONTACT,
   STOP_MOTION_PRIMITIVES,
   STOP_TORQUE,
+  STOP_IMPEDANCE,
   STOP_TWIST,
 };
 
@@ -202,6 +203,7 @@ protected:
   urcl::vector6d_t urcl_position_commands_old_;
   urcl::vector6d_t urcl_velocity_commands_;
   urcl::vector6d_t urcl_torque_commands_;
+  urcl::vector6d_t urcl_impedance_commands_;
   urcl::vector6d_t urcl_twist_commands_;
   urcl::vector6d_t urcl_joint_positions_;
   urcl::vector6d_t urcl_joint_velocities_;
@@ -389,6 +391,7 @@ protected:
   bool position_controller_running_;
   bool velocity_controller_running_;
   bool torque_controller_running_;
+  bool impedance_controller_running_;
   bool force_mode_controller_running_ = false;
 
   std::shared_ptr<urcl::UrDriver> ur_driver_;  // changed to shared_ptr for instruction_executer
@@ -402,6 +405,7 @@ protected:
   const std::string FORCE_MODE_GPIO = "force_mode";
   const std::string FREEDRIVE_MODE_GPIO = "freedrive_mode";
   const std::string TOOL_CONTACT_GPIO = "tool_contact";
+  const std::string IMPEDANCE_GPIO = "impedance";
   const std::string TWIST_GPIO = "twist";
 
   std::unordered_map<std::string, std::unordered_map<std::string, bool>> mode_compatibility_;

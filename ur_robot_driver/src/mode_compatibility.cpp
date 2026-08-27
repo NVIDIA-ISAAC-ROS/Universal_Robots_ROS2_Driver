@@ -28,6 +28,8 @@
 
 #include "ur_robot_driver/mode_compatibility.hpp"
 
+#include <array>
+
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 
 namespace ur_robot_driver
@@ -38,6 +40,7 @@ constexpr const char* PASSTHROUGH_GPIO = "trajectory_passthrough";
 constexpr const char* FORCE_MODE_GPIO = "force_mode";
 constexpr const char* FREEDRIVE_MODE_GPIO = "freedrive_mode";
 constexpr const char* TOOL_CONTACT_GPIO = "tool_contact";
+constexpr const char* IMPEDANCE_GPIO = "impedance";
 constexpr const char* TWIST_GPIO = "twist";
 constexpr const char* HW_IF_MOTION_PRIMITIVES = "motion_primitive";
 }  // namespace
@@ -124,6 +127,18 @@ ModeCompatibilityMatrix createModeCompatibilityMatrix()
   mode_compatibility[TWIST_GPIO][FREEDRIVE_MODE_GPIO] = false;
   mode_compatibility[TWIST_GPIO][TOOL_CONTACT_GPIO] = true;
   mode_compatibility[TWIST_GPIO][HW_IF_MOTION_PRIMITIVES] = false;
+
+  const std::array<std::string, 9> impedance_incompatible_modes = {
+    hardware_interface::HW_IF_POSITION, hardware_interface::HW_IF_VELOCITY,
+    hardware_interface::HW_IF_EFFORT,   FORCE_MODE_GPIO,
+    PASSTHROUGH_GPIO,                    FREEDRIVE_MODE_GPIO,
+    TOOL_CONTACT_GPIO,                   HW_IF_MOTION_PRIMITIVES,
+    TWIST_GPIO
+  };
+  for (const auto& mode : impedance_incompatible_modes) {
+    mode_compatibility[IMPEDANCE_GPIO][mode] = false;
+    mode_compatibility[mode][IMPEDANCE_GPIO] = false;
+  }
 
   return mode_compatibility;
 }

@@ -366,6 +366,15 @@
         <command_interface name="angular_velocity_z"/>
       </gpio>
 
+      <gpio name="${tf_prefix}impedance">
+        <command_interface name="setpoint_positions_0"/>
+        <command_interface name="setpoint_positions_1"/>
+        <command_interface name="setpoint_positions_2"/>
+        <command_interface name="setpoint_positions_3"/>
+        <command_interface name="setpoint_positions_4"/>
+        <command_interface name="setpoint_positions_5"/>
+      </gpio>
+
       <gpio name="${tf_prefix}get_robot_software_version">
         <state_interface name="get_version_major">
           <param name="initial_value">1</param>
