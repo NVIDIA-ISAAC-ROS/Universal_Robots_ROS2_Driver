@@ -1,5 +1,5 @@
 ---
-impedance_controller:
+test_impedance_controller:
   ros__parameters:
     tf_prefix: "test_"
     joints:
